@@ -33,3 +33,6 @@ markdownify>=0.11.0
 
 # Async
 aiohttp>=3.9.0
+
+#Spacy
+spacy>=3.7.0
