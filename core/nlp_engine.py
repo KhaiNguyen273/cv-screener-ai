@@ -11,6 +11,7 @@ from datetime import datetime
 
 # ── Load spaCy model ──────────────────────────────────────────
 nlp_model: Optional[object] = None
+PhraseMatcher = None
 try:
     import spacy
     from spacy.matcher import PhraseMatcher
@@ -22,7 +23,6 @@ try:
 except ImportError:
     print("spaCy chưa cài. Chạy: pip install spacy")
     nlp_model = None
-    PhraseMatcher = None
 
 # ── Danh sách kỹ năng phân theo ngành (SKILLS_BY_CATEGORY) ─────────────────────
 SKILLS_BY_CATEGORY: Dict[str, Set[str]] = {
@@ -175,31 +175,30 @@ EDUCATION_KEYWORDS: List[str] = [
 ]
 
 # ── Pattern kinh nghiệm (cải tiến để match nhiều dạng) ──────────────────────────
-EXPERIENCE_PATTERNS: List[str] = [
-    # Match: "3 years", "3.5 years", "3+ years", "3 yrs"
-    r"(\d+(?:\.\d+)?)\+?\s*(?:year|yr)s?\b",
-    # Match: "experience of 3 years"
-    r"experience\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*(?:year|yr)s?\b",
-    # Match: "3 years experience", "3 years' experience"
-    r"(\d+(?:\.\d+)?)\s*years?'?\s+(?:of\s+)?experience\b",
-    # Match: "over X years", "more than X years", "at least X years"
-    r"(?:over|more\s+than|at\s+least)\s+(\d+(?:\.\d+)?)\s*(?:year|yr)s?\b",
-    # Match date ranges: "2020 - 2023" or "2020 - present"
-    r"(\d{4})\s*[-–—]\s*(\d{4}|present|nay|hiện tại|ongoing|current)",
-]
-
 EXPERIENCE_PATTERNS = [
-    
-    r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\b",
 
+    # ── Pattern 1: "5 years", "3.5 years", "5+ years"
+    # \d+(?:\.\d+)?  → số nguyên hoặc số thập phân (3, 3.5)
+    # \+?            → hỗ trợ "5+ years"
+    r"(\d+(?:\.\d+)?)\s*\+?\s*(?:years?|yrs?)\b",
+
+    # ── Pattern 2: "experience of 3 years"
+    # bắt kiểu viết ngược "experience of X years"
     r"experience\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\b",
 
-    r"(\d+(?:\.\d+)?)\s*years?'?\s+(?:of\s+)?experience\b",
+    # ── Pattern 3: "3 years experience"
+    # bắt kiểu phổ biến trong CV
+    r"(\d+(?:\.\d+)?)\s*years?'?\s*(?:of\s+)?experience\b",
 
+    # ── Pattern 4: "over 3 years", "more than 3 years"
+    # bắt các từ định lượng kinh nghiệm
     r"(?:over|more\s+than|at\s+least)\s+(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\b",
 
-    r"(\d{4})\s*[-–—]\s*(\d{4}|present|nay|hiện tại|ongoing|current)",
+    # ── Pattern 5: date range "2020 - 2023"
+    # dùng để tính tổng năm kinh nghiệm từ timeline làm việc
+    r"(\d{4})\s*[-–—]\s*(\d{4}|present|current|ongoing|nay|hiện tại)",
 ]
+
 ZERO_EXP_KEYWORDS = {
     "no experience", "không yêu cầu kinh nghiệm", "entry level", 
     "fresher", "thực tập sinh", "intern", "internship", 
@@ -280,7 +279,7 @@ def _extract_skills(text: str) -> List[str]:
         Danh sách kỹ năng được tìm thấy (canonical form), sắp xếp alphabetically.
     """
     if not nlp_model or not SKILL_MATCHER:
-        #fall back về regex nếu PhraseMatcher không khả dụng
+        # fall back to regex if PhraseMatcher not available
         return _extract_skills_fallback(text)
     
     try:
@@ -388,60 +387,67 @@ def _calculate_years_from_periods(periods: List[str]) -> Optional[float]:
 
 def _extract_experience(text: str) -> Dict:
     """
-    Trích xuất thông tin kinh nghiệm: số năm và các khoảng thời gian.
-    Hỗ trợ nhiều format: "3 years", "3.5 years", "5+ years", "over 4 years", "2020-2023", etc.
-    Tính toán tổng năm từ date ranges với xử lý overlap.
+    Trích xuất thông tin kinh nghiệm:
+    - số năm (5 years, 3.5 years, 5+ years, over 4 years)
+    - khoảng thời gian (2020 - 2023)
+    - xử lý entry level
     """
-    # Số năm được nhắc đến trực tiếp (ví dụ "5 years experience")
-    years_mentioned: List[float] = []
 
-    # Mốc thời gian ví dụ 2020 - 2023
+    years_mentioned: List[float] = []
     periods: List[str] = []
 
-    # Kiểm tra xem có từ khóa "no experience" hay "entry level"
     text_lower = text.lower()
-    
+
+    # ── 1. Check entry level ─
     entry_level = any(
         keyword.lower() in text_lower
         for keyword in ZERO_EXP_KEYWORDS
     )
 
-    # Từ kiểu như "5 years", "3.5 years", "5+ years", "over 3 years", "4 năm kinh nghiệm".
-    for pattern in EXPERIENCE_PATTERNS[:4]:  # Patterns 0-3 là year patterns
-        # Tìm tất cả chuỗi con khớp mẫu trả về list
+    # ── 2. Extract "X years" patterns ─────────────────────
+    for pattern in EXPERIENCE_PATTERNS[:4]:
         matches = re.findall(pattern, text, re.IGNORECASE)
-        # Đổi phần số (ví dụ "5" hoặc "3.5" từ pattern) thành số
+
         for match in matches:
+
+            # re.findall có thể trả:
+            # - string
+            # - tuple (nếu regex có nhiều group)
+            if isinstance(match, tuple):
+                match = match[0]
+
             try:
-                # Convert to float để handle "3.5 years"
                 year_val = float(match)
                 years_mentioned.append(year_val)
-            except (ValueError, TypeError):
-                pass
 
-    # Tìm khoảng thời gian dạng "2020 - 2023"
-    period_pattern = EXPERIENCE_PATTERNS[4]  # Pattern 4 là date range pattern
-    # Tìm tất cả chuỗi con khớp mẫu trả về list
+            except (ValueError, TypeError):
+                # tránh crash silent
+                continue
+
+    # ── 3. Extract date ranges 
+    period_pattern = EXPERIENCE_PATTERNS[4]
     period_matches = re.findall(period_pattern, text, re.IGNORECASE)
-    # Cặp (tuple) chứa (năm bắt đầu, năm kết thúc hoặc "present")
-    for match in period_matches:
-        start, end = match
+
+    for start, end in period_matches:
         periods.append(f"{start} - {end}")
 
-    # Ưu tiên: tính năm từ date ranges, nếu không có thì dùng giá trị trực tiếp
+    # ── 4. Calculate years from periods 
     calculated_years = _calculate_years_from_periods(periods) if periods else None
-    
+
+    # ── 5. Decide final result 
     if calculated_years is not None:
         final_years = calculated_years
+
     elif years_mentioned:
-        # Lấy max từ các giá trị được nhắc, convert to int
-        final_years = int(max(years_mentioned))
+        # nên MAX, không ép int ngay (mất 3.5 -> 3)
+        final_years = max(years_mentioned)
+
     else:
         final_years = None
 
     result = {
-    "years": final_years,
-    "periods": list(set(periods))[:5],
+        "years": final_years,
+        "periods": list(set(periods))[:5],
     }
 
     if entry_level:
@@ -469,13 +475,12 @@ def _extract_contact_info(text: str) -> Dict:
 
 def _detect_cv_sections(text: str) -> Dict[str, str]:
     """
-    Nhận diện các section chính trong CV (Experience, Education, Skills, Projects, etc.).
-    Giúp tránh trích xuất từ sai section.
-    
-    Returns:
-        Dict[section_name] = section_text
+    Nhận diện section CV (robust cho PDF / LinkedIn / ATS text).
     """
+
     sections = {}
+
+    # Danh sách keyword để nhận diện các section phổ biến trong CV
     section_keywords = {
         "experience": ["experience", "work experience", "professional experience", "employment", "kinh nghiệm"],
         "education": ["education", "educational background", "qualifications", "học vấn"],
@@ -484,40 +489,99 @@ def _detect_cv_sections(text: str) -> Dict[str, str]:
         "certifications": ["certifications", "certificates", "chứng chỉ"],
         "languages": ["languages", "language skills", "ngôn ngữ"],
     }
-    
-    text_lines = text.split("\n")
-    current_section = None
-    current_content = []
-    
-    for line in text_lines:
-        line_lower = line.lower().strip()
-        
-        # Kiểm tra xem line này có phải section header không
-        section_found = False
-        for section_name, keywords in section_keywords.items():
-            is_header = (
-                len(line_lower.split()) <= 4
-                and any(keyword == line_lower for keyword in keywords)
-            )
 
-            if is_header:
-                # Lưu section trước đó
-                if current_section:
-                    sections[current_section] = "\n".join(current_content).strip()
-                # Bắt đầu section mới
-                current_section = section_name
-                current_content = []
-                section_found = True
+    # Tách text thành từng dòng để scan
+    lines = text.split("\n")
+
+    # section hiện tại đang parse
+    current_section = None
+
+    # buffer chứa nội dung của section hiện tại
+    buffer = []
+
+    # flush buffer vào sections dict
+    def flush():
+        nonlocal current_section, buffer
+
+        # chỉ lưu nếu có section + có nội dung
+        if current_section and buffer:
+            sections[current_section] = "\n".join(buffer).strip()
+
+        # reset buffer sau khi flush
+        buffer = []
+
+    # chuẩn hóa text để so sánh keyword
+    def normalize(line: str) -> str:
+        return line.lower().strip().replace(":", "").replace("-", "").strip()
+
+    # kiểm tra xem dòng có phải header không
+    def is_header(line: str) -> bool:
+        norm = normalize(line)
+
+        # nếu quá dài thì gần như không phải header
+        if len(norm.split()) > 8:
+            # Check with word boundaries for long lines
+            has_keyword = any(
+                re.search(rf"\b{re.escape(kw)}\b", norm)
+                for kws in section_keywords.values()
+                for kw in kws
+            )
+            if not has_keyword:
+                return False
+
+        # nếu có keyword của bất kỳ section nào → coi là header
+        for kws in section_keywords.values():
+            for kw in kws:
+                if re.search(rf"\b{re.escape(kw)}\b", norm):
+                    return True
+
+        return False
+
+    # ─────────────────────────────
+    # MAIN LOOP: duyệt từng dòng CV
+    # ─────────────────────────────
+    for line in lines:
+        raw = line.strip()
+
+        # bỏ dòng rỗng
+        if not raw:
+            continue
+
+        norm = normalize(raw)
+
+        matched_section = None
+
+        # tìm xem dòng này thuộc section nào không
+        for section, keywords in section_keywords.items():
+            for kw in keywords:
+
+                # dùng word boundary để tránh match sai (vd: sql vs nosql)
+                if re.search(rf"\b{re.escape(kw.lower())}\b", norm):
+                    matched_section = section
+                    break
+
+            if matched_section:
                 break
-        
-        # Nếu không tìm thấy section mới, thêm vào content hiện tại
-        if not section_found and current_section:
-            current_content.append(line)
-    
-    # Lưu section cuối cùng
-    if current_section:
-        sections[current_section] = "\n".join(current_content).strip()
-    
+
+        # ── CASE 1: gặp đúng tên section (match keyword) ──
+        if matched_section and matched_section != current_section:
+            flush()  # lưu section cũ
+            current_section = matched_section  # chuyển sang section mới
+            continue
+
+        # ── CASE 2: gặp header nhưng không match keyword ──
+        if is_header(raw):
+            flush()  # kết thúc section cũ
+            current_section = None  # tạm reset context
+            continue
+
+        # ── CASE 3: nội dung thuộc section hiện tại ──
+        if current_section:
+            buffer.append(raw)
+
+    # flush lần cuối khi kết thúc loop
+    flush()
+
     return sections
 
 
@@ -536,15 +600,18 @@ def extract_entities(text: str, source: str = "cv") -> Dict:
     sections = _detect_cv_sections(text) if source == "cv" else {}
     
     # 5.1 Tìm kỹ năng (ưu tiên từ Skills section)
-    skills_text = sections.get("skills", text) if sections else text
+    skills_text = sections.get("skills") or text
     skills = _extract_skills(skills_text)
     
     # 5.2 Tìm học vấn (từ Education section)
-    education_text = sections.get("education", text) if sections else text
-    education = _extract_education(education_text) if source == "cv" else []
+    if source == "cv":
+        education_text = sections.get("education") or text
+        education = _extract_education(education_text)
+    else:
+        education = []
     
     # 5.3 Tìm kinh nghiệm (từ Experience section)
-    experience_text = sections.get("experience", text) if sections else text
+    experience_text = sections.get("experience") or text
     experience = _extract_experience(experience_text)
     
     # 5.4 Tìm liên hệ
