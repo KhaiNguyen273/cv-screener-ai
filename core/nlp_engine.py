@@ -1,10 +1,3 @@
-"""
-core/nlp_engine.py
-------------------
-Bước 3: Nhận diện thực thể (NER) từ văn bản CV và JD.
-Trích xuất kỹ năng, học vấn, kinh nghiệm bằng spaCy và regex rules.
-"""
-
 import re
 from typing import Dict, List, Set, Optional
 from datetime import datetime
