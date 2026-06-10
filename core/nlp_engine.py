@@ -8,6 +8,10 @@ Trích xuất kỹ năng, học vấn, kinh nghiệm bằng spaCy và regex rule
 import re
 from typing import Dict, List, Set, Optional
 from datetime import datetime
+from utils.database.skill_repo import (
+    load_skills,
+    load_aliases
+)
 
 # ── Load spaCy model ──────────────────────────────────────────
 nlp_model: Optional[object] = None
@@ -25,114 +29,21 @@ except ImportError:
     nlp_model = None
 
 # ── Danh sách kỹ năng phân theo ngành (SKILLS_BY_CATEGORY) ─────────────────────
-SKILLS_BY_CATEGORY: Dict[str, Set[str]] = {
-    "IT / Công nghệ": {
-        # Languages
-        "python", "java", "javascript", "typescript", "c++", "c#", "go", "rust",
-        "kotlin", "swift", "php", "ruby", "scala", "r", "matlab", "bash",
-        # Web / Frontend
-        "react", "vue", "angular", "html", "css", "nextjs", "nuxtjs", "svelte",
-        "tailwind", "bootstrap", "jquery", "webpack", "vite",
-        # Backend / Frameworks
-        "django", "flask", "fastapi", "spring", "node.js", "express", "laravel",
-        "rails", "asp.net", "dotnet",
-        # Data / AI / ML
-        "machine learning", "deep learning", "nlp", "computer vision",
-        "tensorflow", "pytorch", "keras", "scikit-learn", "pandas", "numpy",
-        "spark", "hadoop", "kafka", "airflow", "mlflow", "hugging face",
-        "langchain", "llm", "generative ai", "rag",
-        # Cloud / DevOps
-        "aws", "azure", "gcp", "docker", "kubernetes", "terraform", "ansible",
-        "jenkins", "github actions", "ci/cd", "linux", "git",
-        # Database
-        "sql", "mysql", "postgresql", "mongodb", "redis", "elasticsearch",
-        "oracle", "sqlite", "dynamodb", "firebase",
-        # Other
-        "rest api", "graphql", "microservices", "agile", "scrum", "jira",
-    },
-    "Marketing / Truyền thông": {
-        "seo", "sem", "digital marketing", "content marketing", "social media",
-        "email marketing", "marketing automation", "analytics", "ga4", "google analytics",
-        "facebook ads", "google ads", "instagram", "linkedin", "tiktok",
-        "copywriting", "branding", "brand strategy", "market research", "campaign management",
-        "crm", "salesforce", "hubspot", "mailchimp", "hootsuite",
-        "content management", "wordpress", "shopify", "conversion rate", "ab testing",
-    },
-    "Thiết kế / UX": {
-        "figma", "adobe xd", "sketch", "photoshop", "illustrator", "indesign",
-        "ui/ux design", "ux research", "wireframing", "prototyping", "user testing",
-        "design thinking", "user experience", "user interface", "graphic design",
-        "web design", "mobile design", "interaction design", "animation",
-        "css", "sass", "responsive design", "accessibility", "color theory",
-        "typography", "layout design", "design system", "component design",
-    },
-    "Kế toán / Tài chính": {
-        "accounting", "bookkeeping", "tax accounting", "financial reporting",
-        "auditing", "forensic accounting", "quickbooks", "sage", "xero",
-        "excel", "advanced excel", "pivot table", "vlookup", "financial analysis",
-        "budget planning", "forecasting", "cost analysis", "cash flow", "general ledger",
-        "accounts payable", "accounts receivable", "reconciliation", "gaap", "ifrs",
-        "tax compliance", "payroll", "financial statements", "investment analysis",
-    },
-    "Kinh doanh / Quản lý": {
-        "project management", "project planning", "risk management", "stakeholder management",
-        "agile", "scrum", "kanban", "jira", "asana", "monday.com", "smartsheet",
-        "business analysis", "requirements gathering", "process improvement",
-        "supply chain", "operations", "logistics", "vendor management",
-        "strategic planning", "business development", "sales management",
-        "performance management", "change management", "organizational development",
-    },
-    "Nhân sự (HR)": {
-        "recruitment", "talent acquisition", "employer branding", "onboarding",
-        "employee relations", "performance management", "compensation benefits",
-        "training development", "learning management", "hris", "workday", "successfactors",
-        "hr analytics", "recruitment analytics", "succession planning", "career development",
-        "employee engagement", "organizational culture", "conflict resolution",
-        "compliance", "labor law", "employee satisfaction",
-    },
-    "Bán hàng (Sales)": {
-        "sales", "business development", "account management", "account executive",
-        "inside sales", "outside sales", "territory management", "lead generation",
-        "sales pipeline", "customer acquisition", "customer retention", "upselling", "cross-selling",
-        "negotiation", "closing skills", "sales forecasting", "quota management",
-        "crm", "salesforce", "hubspot", "pipedrive", "zoho crm",
-        "sales strategy", "sales metrics", "roi calculation",
-    },
-    "Hỗ trợ khách hàng (Customer Service)": {
-        "customer service", "customer support", "technical support", "help desk",
-        "ticketing system", "zendesk", "intercom", "freshdesk", "jira service desk",
-        "customer success", "account management", "complaint handling", "troubleshooting",
-        "documentation", "knowledge base", "customer training", "onboarding",
-        "customer retention", "customer satisfaction", "nps", "customer feedback",
-    },
-}
+
+
+SKILLS_BY_CATEGORY: Dict[str, Set[str]] = load_skills()
+# ── Skill synonyms/variations mapping: canonical -> [variations] ──
+SKILL_ALIASES: Dict[str, List[str]] = load_aliases()
+
 
 # ── Danh sách từ khóa kỹ năng kỹ thuật phổ biến (để backward compatibility) ────────
-TECH_SKILLS_KEYWORDS: Set[str] = SKILLS_BY_CATEGORY.get("IT / Công nghệ", set())
+TECH_SKILLS_KEYWORDS = SKILLS_BY_CATEGORY.get("IT / Software", set())
 # ── Build ALL_SKILLS at module level (optimization) ────────────────────────
 ALL_SKILLS: Set[str] = set()
 for category_skills in SKILLS_BY_CATEGORY.values():
     ALL_SKILLS.update(category_skills)
 
-# ── Skill synonyms/variations mapping: canonical -> [variations] ──
-SKILL_ALIASES: Dict[str, List[str]] = {
-    "react": ["reactjs", "react.js"],
-    "vue": ["vuejs", "vue.js"],
-    "angular": ["angularjs", "angular.js"],
-    "nextjs": ["next.js"],
-    "nuxtjs": ["nuxt.js"],
-    "node.js": ["nodejs", "node js"],
-    "postgresql": ["postgres", "postgre"],
-    "mysql": ["mysql5"],
-    "mongodb": ["mongo"],
-    "javascript": ["js", "java script"],
-    "typescript": ["ts", "type script"],
-    "aws": ["amazon"],
-    "gcp": ["google cloud"],
-    "azure": ["microsoft azure"],
-    "kubernetes": ["k8s", "k8"],
-    "python": ["py"],
-}
+
 
 # ── Build PhraseMatcher cho skills (hiệu năng tốt hơn regex loop) ──
 SKILL_LOOKUP: Dict[str, str] = {}  # skill_text.lower() -> canonical_skill
