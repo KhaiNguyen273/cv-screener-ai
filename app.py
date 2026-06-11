@@ -127,28 +127,28 @@ def _verdict_class(verdict: str) -> str:
 def run_pipeline(jd_text: str, cv_file) -> dict:
     """Chạy toàn bộ pipeline CV vs JD. cv_file là UploadedFile của Streamlit."""
     suffix = Path(cv_file.name).suffix.lower()
-    # 3.1 Tạo ra một file tạm thời trên hệ thống lưu trữ của máy tính
+    #Tạo ra một file tạm thời trên hệ thống lưu trữ của máy tính
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        # 3.2 Đọc và ghi vào file tạm
+        #Đọc và ghi vào file tạm
         tmp.write(cv_file.read())
-        # 3.3 Lưu đường dẫn vào biến tạm
+        #Lưu đường dẫn vào biến tạm
         tmp_path = tmp.name
     try:
-        # 3.4 Lưu nội dung vào biến
+        #Lưu nội dung vào biến
         raw_cv = parse_cv(tmp_path)
     finally:
-        # 3.5 Xóa file tạm thời khỏi hệ thống lưu trữ
+        #Xóa file tạm thời khỏi hệ thống lưu trữ
         os.unlink(tmp_path)
 
-    # 4. Làm sạch cv jd
+    #Làm sạch cv jd
     clean_cv  = clean_text(raw_cv)
     clean_jd  = clean_text(jd_text)
-    # 5. Trích xuất thực thể
+    #Trích xuất thực thể
     cv_ent    = extract_entities(clean_cv, source="cv")
     jd_ent    = extract_entities(clean_jd, source="jd")
-    # 6. Chấm điểm
+    #Chấm điểm
     scores    = score_cv_vs_jd(clean_cv, clean_jd, cv_ent, jd_ent)
-    # 7. Phân tích
+    #Phân tích
     report    = generate_analysis_report(cv_text=clean_cv, jd_text=clean_jd,
                                          scores=scores, cv_entities=cv_ent,
                                          jd_entities=jd_ent)
@@ -158,15 +158,15 @@ def run_pipeline(jd_text: str, cv_file) -> dict:
 
 def run_pipeline_from_text(cv_text: str, jd_text: str) -> dict:
     """Giống run_pipeline nhưng nhận text thô thay vì file upload (dùng cho chế độ ứng viên)."""
-    # 4. Làm sạch cv jd
+    #Làm sạch cv jd
     clean_cv  = clean_text(cv_text)
     clean_jd  = clean_text(jd_text)
-    # 5. Trích xuất thực thể
+    #Trích xuất thực thể
     cv_ent    = extract_entities(clean_cv, source="cv")
     jd_ent    = extract_entities(clean_jd, source="jd")
-    # 6. Chấm điểm
+    #Chấm điểm
     scores    = score_cv_vs_jd(clean_cv, clean_jd, cv_ent, jd_ent)
-    # 7. Phân tích
+    #Phân tích
     report    = generate_analysis_report(cv_text=clean_cv, jd_text=clean_jd,
                                          scores=scores, cv_entities=cv_ent,
                                          jd_entities=jd_ent)
@@ -346,19 +346,19 @@ def render_recruiter_mode():
             st.error("⚠️ Vui lòng tải lên ít nhất 1 file CV.")
             return
 
-        # 2.2 Xử lý từng CV với progress bar
+        #Xử lý từng CV với progress bar
         all_results = {}
         progress = st.progress(0, text="Bắt đầu phân tích...")
         for i, cv_file in enumerate(cv_files):
             progress.progress(i / len(cv_files), text=f"⚙️ Đang xử lý: **{cv_file.name}**")
             try:
-                # 3. Chạy pipeline, lưu kết quả vào all_results với key là tên file
+                #hạy pipeline, lưu kết quả vào all_results với key là tên file
                 all_results[cv_file.name] = run_pipeline(jd_text, cv_file)
             except Exception as e:
                 all_results[cv_file.name] = {"error": str(e)}
         progress.progress(1.0, text=f"✅ Hoàn tất {len(cv_files)} CV!")
 
-        # 8. Xây bảng ranking + tab chi tiết
+        #Xây bảng ranking + tab chi tiết
         _render_ranking(all_results, label_col="CV")
 
 
@@ -418,7 +418,7 @@ def _render_job_card(job, idx: int, is_selected: bool, is_full: bool):
                 st.warning("⚠️ Không lấy được mô tả chi tiết cho job này.")
 
 def render_candidate_mode():
-    # 1. upload CV
+    #upload CV
     st.markdown("#### 📄 Upload CV của bạn")
     cv_file = st.file_uploader(
         label="CV", type=["pdf","docx"],
@@ -429,20 +429,20 @@ def render_candidate_mode():
     if cv_file:
         st.success(f"✅ Đã tải lên: **{cv_file.name}**")
 
-    # 2. Parse CV text ngay khi upload (cache bằng session_state để không parse lại khi rerun)
+    #Parse CV text ngay khi upload (cache bằng session_state để không parse lại khi rerun)
     if cv_file and st.session_state.get("candidate_cv_name") != cv_file.name:
         suffix = Path(cv_file.name).suffix.lower()
-        # 2.1 Tạo ra một file tạm thời trên hệ thống lưu trữ của máy tính
+        # Tạo ra một file tạm thời trên hệ thống lưu trữ của máy tính
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            # 2.2 Đọc và ghi vào file tạm
+            # Đọc và ghi vào file tạm
             tmp.write(cv_file.read())
-            # 2.3 Lưu đường dẫn vào biến tạm
+            # Lưu đường dẫn vào biến tạm
             tmp_path = tmp.name
         try:
-            # 2.4 Lưu nội dung vào biến
+            # Lưu nội dung vào biến
             raw = parse_cv(tmp_path)
         finally:
-            # 2.5 Xóa file tạm thời khỏi hệ thống lưu trữ
+            # Xóa file tạm thời khỏi hệ thống lưu trữ
             os.unlink(tmp_path)
 
         #buộc dùng session_state vì là luồng nhiều bước bấm một nút, tải lên một file, gõ chữ thì app.py sẽ chạy lại 
@@ -458,7 +458,7 @@ def render_candidate_mode():
         st.info("👆 Hãy upload CV để tiếp tục.")
         return
 
-    # 3. Cào danh sách job
+    #Cào danh sách job
     col_fetch, col_page = st.columns([3,1])
     with col_page:
         page_num = st.number_input("Trang TopCV", min_value=1, max_value=20,
@@ -504,7 +504,7 @@ def render_candidate_mode():
         unsafe_allow_html=True,
     )
 
-    # 4. Danh sách job + chọn
+    # Danh sách job + chọn
     selected: set = st.session_state.get("selected_jobs", set())
     is_full = len(selected) >= MAX_SELECT
 
@@ -528,7 +528,7 @@ def render_candidate_mode():
 
     st.markdown("<hr style='border-color:#2d3250;margin:1.5rem 0;'>", unsafe_allow_html=True)
 
-    # 5. Chấm điểm
+    # Chấm điểm
     if not selected:
         st.info(f"👆 Chọn từ 1 đến {MAX_SELECT} job để chấm điểm CV của bạn.")
         return
@@ -570,7 +570,7 @@ def render_candidate_mode():
         # Lưu vào session_state để kết quả không mất khi Streamlit rerun
         st.session_state.job_results = all_results
 
-    # 6. Kết quả xếp hạng
+    # Kết quả xếp hạng
     # Dùng .get() thay vì truy cập thẳng — tránh KeyError nếu chưa chấm lần nào
     if st.session_state.get("job_results"):
         _render_ranking(st.session_state.job_results, label_col="Job")

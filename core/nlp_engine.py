@@ -202,7 +202,7 @@ def _extract_skills(text: str) -> List[str]:
         print(f"Error in _extract_skills: {e}")
         return _extract_skills_fallback(text)
 
-# 5.1a Lấy danh sách skill theo category (nhanh hơn dùng lookup table)
+# Lấy danh sách skill theo category (nhanh hơn dùng lookup table)
 def _get_skills_by_category(text: str) -> Dict[str, List[str]]:
     """
     Trích xuất kỹ năng từ văn bản với thông tin category.
@@ -218,7 +218,7 @@ def _get_skills_by_category(text: str) -> Dict[str, List[str]]:
     
     return result
 
-# 5.2 Tìm học vấn
+# Tìm học vấn
 def _extract_education(text: str) -> List[str]:
     """Trích xuất thông tin học vấn từ văn bản."""
     text_lower = text.lower()
@@ -239,7 +239,7 @@ def _extract_education(text: str) -> List[str]:
             unique.append(item)
     return unique[:5]
 
-# 5.3 Tìm kinh nghiệm
+# Tìm kinh nghiệm
 def _calculate_years_from_periods(periods: List[str]) -> Optional[float]:
     """
     Tính tổng số năm từ các khoảng thời gian, xử lý overlap.
@@ -359,7 +359,7 @@ def _extract_experience(text: str) -> Dict:
 
     return result
 
-# 5.4 Tìm liên hệ
+# Tìm liên hệ
 def _extract_contact_info(text: str) -> Dict:
     """Trích xuất email và số điện thoại từ CV. Fixed regex patterns."""
     # Email pattern: tất cả ký tự trước @, domain, và TLD. Dấu . PHẢI escape thành \\.
@@ -503,22 +503,22 @@ def extract_entities(text: str, source: str = "cv") -> Dict:
     # Nhận diện sections trước
     sections = _detect_cv_sections(text) if source == "cv" else {}
     
-    # 5.1 Tìm kỹ năng (ưu tiên từ Skills section)
+    # Tìm kỹ năng (ưu tiên từ Skills section)
     skills_text = sections.get("skills") or text
     skills = _extract_skills(skills_text)
     
-    # 5.2 Tìm học vấn (từ Education section)
+    # Tìm học vấn (từ Education section)
     if source == "cv":
         education_text = sections.get("education") or text
         education = _extract_education(education_text)
     else:
         education = []
     
-    # 5.3 Tìm kinh nghiệm (từ Experience section)
+    # Tìm kinh nghiệm (từ Experience section)
     experience_text = sections.get("experience") or text
     experience = _extract_experience(experience_text)
     
-    # 5.4 Tìm liên hệ
+    # Tìm liên hệ
     contact = _extract_contact_info(text) if source == "cv" else {}
 
     return {

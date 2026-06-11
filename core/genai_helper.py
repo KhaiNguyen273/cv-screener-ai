@@ -240,7 +240,7 @@ def _parse_json_response(raw_response: str) -> Dict:
         }
 
 
-# 7. Phân tích
+# Phân tích
 def generate_analysis_report(
     cv_text: str,
     jd_text: str,
@@ -263,13 +263,13 @@ def generate_analysis_report(
     Returns:
         Dict JSON có cấu trúc chứa toàn bộ báo cáo.
     """
-    # 7.2 Tạo prompt
+    # Tạo prompt
     prompt = _build_prompt(cv_text, jd_text, scores, cv_entities, jd_entities)
 
-    # 7.1 Gọi LLM với fallback chain (Groq → Gemini)
+    # Gọi LLM với fallback chain (Groq → Gemini)
     raw_text, model_used = _call_llm_with_fallback(prompt)
 
-    # 7.3 Xóa markdown, parse JSON câu trả lời
+    # Xóa markdown, parse JSON câu trả lời
     report = _parse_json_response(raw_text)
 
     # Thêm metadata vào report
