@@ -19,6 +19,7 @@ from core.pdf_parser import parse_cv
 from core.scoring_algo import score_cv_vs_jd
 from utils.text_cleaner import clean_text
 from topcv import get_jobs_list  # scraper TopCV
+from topcv.categories import CATEGORY_CONFIGS
 
 # Cấu hình trang
 st.set_page_config(page_title="CV Screener AI", page_icon="🎯", layout="wide")
@@ -460,18 +461,25 @@ def render_candidate_mode():
 
     #Cào danh sách job
     col_fetch, col_page = st.columns([3,1])
+    with col_fetch:
+        selected_industry = st.selectbox(
+            "Chọn ngành TopCV",
+            list(CATEGORY_CONFIGS.keys()),
+            key="topcv_industry",
+        )
+        st.markdown("<br>", unsafe_allow_html=True)
+        fetch_btn = st.button(
+            f"🔄 Tải danh sách Job {selected_industry} từ TopCV",
+            width='stretch', key="fetch_jobs",
+        )
     with col_page:
         page_num = st.number_input("Trang TopCV", min_value=1, max_value=20,
                                    value=1, step=1, key="topcv_page")
-    with col_fetch:
-        st.markdown("<br>", unsafe_allow_html=True)
-        fetch_btn = st.button("🔄 Tải danh sách Job IT từ TopCV",
-                              width='stretch', key="fetch_jobs")
 
     if fetch_btn:
         with st.spinner(f"⚙️ Đang cào trang {page_num}..."):
             try:
-                jobs = asyncio.run(get_jobs_list(page=page_num))
+                jobs = asyncio.run(get_jobs_list(category=selected_industry, page=page_num))
                 st.session_state.jobs_list     = jobs
                 st.session_state.selected_jobs = set()
                 st.session_state.job_results   = {}
