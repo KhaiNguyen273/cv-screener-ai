@@ -316,11 +316,20 @@ def render_recruiter_mode():
     with col_jd:
         st.markdown("#### 📋 Job Description")
         jd_text = st.text_area(
-            label="JD", height=300,
+            label="JD", height=220,
             placeholder="Dán toàn bộ nội dung Job Description vào đây...",
             label_visibility="collapsed",
             key="recruiter_jd",
         )
+        jd_file = st.file_uploader(
+            label="Upload JD", type=["pdf","docx"],
+            accept_multiple_files=False,
+            label_visibility="collapsed",
+            key="recruiter_jd_file",
+        )
+        if jd_file:
+            st.success(f"✅ Đã tải lên JD: **{jd_file.name}**")
+            st.markdown("<p style='color:#8b92a5;font-size:.9rem;margin:4px 0 0 0;'>JD file sẽ được ưu tiên khi phân tích.</p>", unsafe_allow_html=True)
     with col_cv:
         st.markdown("#### 📄 CV Ứng Viên (nhiều file)")
         cv_files = st.file_uploader(
@@ -340,12 +349,21 @@ def render_recruiter_mode():
     st.markdown("<hr style='border-color:#2d3250;margin:1.5rem 0;'>", unsafe_allow_html=True)
 
     if analyze_btn:
-        if not jd_text.strip():
-            st.error("⚠️ Vui lòng nhập nội dung Job Description.")
+        if not jd_text.strip() and not jd_file:
+            st.error("⚠️ Vui lòng nhập nội dung Job Description hoặc tải lên file JD.")
             return
         if not cv_files:
             st.error("⚠️ Vui lòng tải lên ít nhất 1 file CV.")
             return
+        if jd_file:
+            suffix = Path(jd_file.name).suffix.lower()
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp.write(jd_file.read())
+                tmp_path = tmp.name
+            try:
+                jd_text = parse_cv(tmp_path)
+            finally:
+                os.unlink(tmp_path)
 
         #Xử lý từng CV với progress bar
         all_results = {}
