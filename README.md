@@ -40,17 +40,15 @@ pip install -r requirements.txt
 
 GROQ_API_KEY=your_api_key_here # Ưu tiên 1 — free 1000 req/ngày
 GEMINI_API_KEY=your_api_key_here # Fallback — dùng khi Groq hết quota
+POPPLER_PATH = your_path
 
 Lấy Groq API Key miễn phí : https://console.groq.com/keys
 Lấy Gemini API Key miễn phí : https://aistudio.google.com/app/apikey
+Tải Poppler từ https://github.com/oschwartz10612/poppler-windows/releases - giải nén và lấy path tới Library\bin của thư mục đó
 
 ### Bước 3 — Chạy ứng dụng
 
 python -m streamlit run app.py
-
-## Trạng thái hiện tại
-
-Sườn đã build nhưng chỉ đang hoạt động với CV và JD của ngành CNTT.
 
 ## Công việc cần làm
 

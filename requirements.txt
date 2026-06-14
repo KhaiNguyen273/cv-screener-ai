@@ -36,3 +36,6 @@ aiohttp>=3.9.0
 
 #Spacy
 spacy>=3.7.0
+
+easyocr>=1.7.0
+pdf2image>=1.17.0
