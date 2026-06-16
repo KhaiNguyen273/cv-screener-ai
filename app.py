@@ -111,7 +111,7 @@ def _gauge_chart(value: float, title: str) -> go.Figure:
             ],
             "threshold": {"line": {"color": color, "width": 3}, "thickness": .75, "value": value},
         },
-        title={"text": title, "font": {"size": 13, "color": "#8b92a5"}},
+        title={"text": title, "font": {"size": 10, "color": "#8b92a5"}},
     ))
     fig.update_layout(height=200, margin=dict(l=20,r=20,t=30,b=10),
                       paper_bgcolor="rgba(0,0,0,0)", font_color="#c9d1d9")
@@ -315,21 +315,36 @@ def render_recruiter_mode():
     col_jd, col_cv = st.columns([1,1], gap="large")
     with col_jd:
         st.markdown("#### 📋 Job Description")
+
+        # Track trạng thái
+        has_jd_text = bool(st.session_state.get("recruiter_jd", "").strip())
+        has_jd_file = st.session_state.get("recruiter_jd_file") is not None
+
         jd_text = st.text_area(
             label="JD", height=220,
             placeholder="Dán toàn bộ nội dung Job Description vào đây...",
             label_visibility="collapsed",
             key="recruiter_jd",
+            disabled=has_jd_file,  # disable nếu đã có file
         )
+
+        if has_jd_file:
+            st.markdown("<p style='color:#8b92a5;font-size:.8rem;margin:0 0 4px 0;'>Xóa file JD để nhập text thủ công.</p>", unsafe_allow_html=True)
+
         jd_file = st.file_uploader(
             label="Upload JD", type=["pdf","docx"],
             accept_multiple_files=False,
             label_visibility="collapsed",
             key="recruiter_jd_file",
+            disabled=has_jd_text,  # disable nếu đã có text
         )
+
+        if has_jd_text:
+            st.markdown("<p style='color:#8b92a5;font-size:.8rem;margin:4px 0 0 0;'>Xóa text JD để upload file.</p>", unsafe_allow_html=True)
+
         if jd_file:
             st.success(f"✅ Đã tải lên JD: **{jd_file.name}**")
-            st.markdown("<p style='color:#8b92a5;font-size:.9rem;margin:4px 0 0 0;'>JD file sẽ được ưu tiên khi phân tích.</p>", unsafe_allow_html=True)
+
     with col_cv:
         st.markdown("#### 📄 CV Ứng Viên (nhiều file)")
         cv_files = st.file_uploader(
@@ -352,17 +367,25 @@ def render_recruiter_mode():
         if not jd_text.strip() and not jd_file:
             st.error("⚠️ Vui lòng nhập nội dung Job Description hoặc tải lên file JD.")
             return
+        
         if not cv_files:
             st.error("⚠️ Vui lòng tải lên ít nhất 1 file CV.")
             return
+        
         if jd_file:
+            # lấy tên file và đuôi file (pdf, doc,...) để hàm parse_cv biết file dạng nào
             suffix = Path(jd_file.name).suffix.lower()
+            # tạo file tạm trong thư mục temp của OS, suffix=suffix — gắn đúng đuôi .pdf hoặc .docx
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                # ghi toàn bộ vào file tạm
                 tmp.write(jd_file.read())
+                # Lưu vào tmp_path vì sau khi thoát with block thì tmp object đóng lại, không truy cập được tmp.name nữa
                 tmp_path = tmp.name
             try:
+                # Gọi parse_cv() với đường dẫn thật trên disk
                 jd_text = parse_cv(tmp_path)
             finally:
+                # Bắt buộc xóa file tạm dù parse_cv() thành công hay crash
                 os.unlink(tmp_path)
 
         #Xử lý từng CV với progress bar
@@ -371,7 +394,7 @@ def render_recruiter_mode():
         for i, cv_file in enumerate(cv_files):
             progress.progress(i / len(cv_files), text=f"⚙️ Đang xử lý: **{cv_file.name}**")
             try:
-                #hạy pipeline, lưu kết quả vào all_results với key là tên file
+                # chạy pipeline, lưu kết quả vào all_results với key là tên file
                 all_results[cv_file.name] = run_pipeline(jd_text, cv_file)
             except Exception as e:
                 all_results[cv_file.name] = {"error": str(e)}
@@ -537,7 +560,7 @@ def render_candidate_mode():
     st.markdown(f"#### 📋 Danh sách Job ({total_with_jd} việc làm) — Chọn tối đa {MAX_SELECT}")
 
     keyword = st.text_input("🔎 Lọc theo từ khóa (tiêu đề, công ty, tag)",
-                             key="job_filter", placeholder="python, react, hà nội...")
+                             key="job_filter", placeholder="skill, location...")
     filtered_jobs = [
         (i, j) for i, j in jobs_map.items()
         if not keyword or keyword.lower() in (

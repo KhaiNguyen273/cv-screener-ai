@@ -37,7 +37,11 @@ def convert_html_2_listObj(html: str) -> list[Job]:
         ]
 
         time_tag = job_div.select_one(".label-update")
-        job["time_posted"] = time_tag.get_text(strip=True) if time_tag else None
+        if time_tag:
+            # Lấy text các node con riêng, join bằng space
+            job["time_posted"] = " ".join(time_tag.stripped_strings)
+        else:
+            job["time_posted"] = None
 
         img_tag = job_div.select_one(".avatar img")
         job["image_url"] = img_tag.get("data-src") if img_tag else None
