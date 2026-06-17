@@ -142,6 +142,8 @@ def _build_prompt(
     missing_skills = ", ".join(scores.get("missing_skills", [])) or "Không có"
     cv_education   = "; ".join(cv_entities.get("education", [])) or "Không rõ"
     cv_exp_years   = cv_entities.get("experience", {}).get("years", "Không rõ")
+    cv_gpa = cv_entities.get("gpa")
+    gpa_str = f"GPA: {cv_gpa}" if cv_gpa else "Không có thông tin GPA"
 
     prompt = f"""
 Bạn là chuyên gia tuyển dụng cấp cao. Hãy phân tích CV ứng viên so với Job Description và trả về KẾT QUẢ ĐÚNG CỨU JSON (không có markdown, không có text ngoài JSON).
@@ -162,6 +164,7 @@ CV ỨNG VIÊN:
 - Kỹ năng khớp: {matched_skills}
 - Kỹ năng còn thiếu: {missing_skills}
 - Học vấn: {cv_education}
+- GPA: {gpa_str}
 - Số năm kinh nghiệm: {cv_exp_years}
 
 === YÊU CẦU OUTPUT ===

@@ -488,6 +488,42 @@ def _detect_cv_sections(text: str) -> Dict[str, str]:
 
     return sections
 
+def _extract_gpa(text: str) -> Dict:
+    """
+    Trích xuất GPA từ text.
+    Hỗ trợ: GPA: 3.45/4.0, Điểm: 9.2/10, 3.45 out of 4.0, v.v.
+    """
+    text_lower = text.lower()
+    
+    patterns = [
+        # Từ khóa + số ± dấu /
+        r"(?:gpa|điểm|score|tích\s*lũy|điểm\s*trung\s*bình|cumulative|overall|final)\s*[:\s]+(\d+(?:\.\d+)?)\s*(?:/\s*(?:4\.?0?|10))?",
+        
+        # Số / Denominator
+        r"(\d+(?:\.\d+)?)\s*/\s*(?:4\.?0?|10)(?!\d)",
+        
+        # Từ khóa + số (không dấu /)
+        r"(?:gpa|điểm|score)\s*[:\s]*(\d+(?:\.\d+)?)(?!\d)",
+        
+        # Số trong ngoặc
+        r"(\d+(?:\.\d+)?)\s*\(\s*(?:trên|on)?\s*(?:4\.?0?|10|scale)\s*\)",
+        
+        # out of
+        r"(\d+(?:\.\d+)?)\s+out\s+of\s+(?:4\.?0?|10)",
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text_lower)
+        if match:
+            try:
+                gpa_value = float(match.group(1))
+                if 0 <= gpa_value <= 10:
+                    return {"gpa": round(gpa_value, 2)}
+            except (ValueError, IndexError):
+                continue
+    
+    return {"gpa": None}
+
 
 def extract_entities(text: str, source: str = "cv") -> Dict:
     """
@@ -521,11 +557,14 @@ def extract_entities(text: str, source: str = "cv") -> Dict:
     # Tìm liên hệ
     contact = _extract_contact_info(text) if source == "cv" else {}
 
+    gpa_info = _extract_gpa(education_text) if source == "cv" else {}
+
     return {
         "skills": skills,
         "education": education,
         "experience": experience,
         "contact": contact,
+        "gpa": gpa_info.get("gpa"), 
         "raw_skill_count": len(skills),
         "sections_detected": list(sections.keys()) if sections else [],
     }
