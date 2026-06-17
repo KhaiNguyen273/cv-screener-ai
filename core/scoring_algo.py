@@ -73,6 +73,31 @@ def compute_skill_overlap(
         "overlap_score": round(overlap_score, 4),
     }
 
+def score_gpa(cv_gpa: float, jd_gpa: float = None) -> float:
+    """
+    Tính GPA score (0-1).
+    Tự quy đổi về thang 4.0 trước khi so sánh để tránh lệch thang
+    (CV ghi hệ 10, JD yêu cầu hệ 4 hoặc ngược lại).
+    Nếu JD không yêu cầu → full điểm.
+    """
+    if cv_gpa is None:
+        return 0.5  # Không rõ → trung bình
+    if jd_gpa is None:
+        return 1.0  # JD không yêu cầu → full
+
+    def to_scale_4(gpa: float) -> float:
+        # GPA > 4.0 chỉ có thể là thang 10 → quy đổi
+        if gpa > 4.0:
+            return min((gpa / 10.0) * 4.0, 4.0)
+        return gpa
+
+    cv_norm = to_scale_4(cv_gpa)
+    jd_norm = to_scale_4(jd_gpa)
+
+    if jd_norm <= 0:
+        return 1.0
+
+    return min(cv_norm / jd_norm, 1.0)
 # 6. Chấm điểm
 # Dict là cặp key-value
 def score_cv_vs_jd(
@@ -129,12 +154,19 @@ def score_cv_vs_jd(
     else:
         # Cả hai đều có số năm → tính tỷ lệ
         experience_score = min(cv_years / jd_years, 1.0)
+        
+
+    gpa_score = score_gpa(
+        cv_entities.get("gpa"),
+        jd_entities.get("gpa")
+    )
 
     # 6.4 Weighted Final Score
     final_score = (
         semantic_score * 0.50
-        + skill_score * 0.40
+        + skill_score * 0.35  # ← giảm từ 0.40 xuống 0.35
         + experience_score * 0.10
+        + gpa_score * 0.05  # ← thêm GPA
     )
 
     return {
