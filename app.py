@@ -1,4 +1,3 @@
-
 """
 app.py — CV Screener AI
 Chế độ Tuyển Dụng : so sánh nhiều CV vs 1 JD
@@ -491,6 +490,7 @@ def _score_bar(value: float) -> str:
 
 
 def run_pipeline(jd_text: str, cv_file) -> dict:
+    # Tương tự jd lưu đường dẫn file tạm để dùng cho parse cv lấy ra raw text của cv
     suffix = Path(cv_file.name).suffix.lower()
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(cv_file.read())
@@ -499,10 +499,15 @@ def run_pipeline(jd_text: str, cv_file) -> dict:
         raw_cv = parse_cv(tmp_path)
     finally:
         os.unlink(tmp_path)
+
+    # Làm sạch raw text khoảng trắng và ký tự không được phép
     clean_cv = clean_text(raw_cv)
     clean_jd = clean_text(jd_text)
+
+    # Tìm thực thể
     cv_ent   = extract_entities(clean_cv, source="cv")
     jd_ent   = extract_entities(clean_jd, source="jd")
+
     scores   = score_cv_vs_jd(clean_cv, clean_jd, cv_ent, jd_ent)
     report   = generate_analysis_report(cv_text=clean_cv, jd_text=clean_jd,
                                         scores=scores, cv_entities=cv_ent,
@@ -528,7 +533,7 @@ def run_pipeline_from_text(cv_text: str, jd_text: str) -> dict:
 # CANDIDATE DETAIL DASHBOARD (dùng chung 2 chế độ)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _render_candidate_detail(result: dict, candidate_key: str, candidate_name: str = ""):
+def _render_candidate_detail(result: dict, candidate_key: str, candidate_name: str = "", mode: str = "recruiter"):
     scores  = result["scores"]
     cv_ent  = result["cv_entities"]
     report  = result["report"]
@@ -541,6 +546,18 @@ def _render_candidate_detail(result: dict, candidate_key: str, candidate_name: s
         <p class="assessment-name">{candidate_name}</p>
         <p class="assessment-summary">{report.get('overall_summary', '')}</p>
         """, unsafe_allow_html=True)
+
+    contact = cv_ent.get("contact", {})
+    email = contact.get("email")
+    phone = contact.get("phone")
+    if email or phone:
+        contact_html = " &nbsp;·&nbsp; ".join(
+            filter(None, [email, phone])
+        )
+        st.markdown(
+            f'<p style="color:#6b7280;font-size:.85rem;margin:0 0 12px 0;">{contact_html}</p>',
+            unsafe_allow_html=True,
+        )
 
     # ── Score cards (4 boxes) ──
     final   = scores.get("final_score", 0)
@@ -630,7 +647,16 @@ def _render_candidate_detail(result: dict, candidate_key: str, candidate_name: s
         ) or "<span style='color:#9ca3af;font-size:.83rem;'>Đáp ứng đầy đủ</span>"
 
         edu_name = edu_list[0] if edu_list else "Không rõ"
-        gpa_str  = f"{gpa} / 4.0" if gpa else "—"
+        gpa_scale = cv_ent.get("gpa_scale")
+        if gpa:
+            if gpa_scale:
+                scale_label = f"/{int(gpa_scale)}"
+            else:
+                # Không có dấu "/" trong CV → suy ra từ giá trị: >4 là thang 10, còn lại là thang 4
+                scale_label = "/10" if gpa > 4.0 else "/4.0"
+            gpa_str = f"{gpa}{scale_label}"
+        else:
+            gpa_str = "—"
 
         st.markdown(f"""
         <div class="skill-card">
@@ -658,16 +684,19 @@ def _render_candidate_detail(result: dict, candidate_key: str, candidate_name: s
             </div>
             """, unsafe_allow_html=True)
 
-    # ── Hiring recommendation ──
-    hiring_rec = report.get("hiring_recommendation", "")
-    if hiring_rec:
-        if "ngay" in hiring_rec.lower():
-            rec_color = "#065f46"
-        elif "dự phòng" in hiring_rec.lower():
-            rec_color = "#92400e"
-        else:
-            rec_color = "#991b1b"
+    # ── Hiring / Candidate recommendation ──
+    if mode == "recruiter":
+        rec_text = report.get("hiring_recommendation", "")
+        if "ngay" in rec_text.lower(): rec_color = "#065f46"
+        elif "dự phòng" in rec_text.lower(): rec_color = "#92400e"
+        else: rec_color = "#991b1b"
+    else:
+        rec_text = report.get("candidate_recommendation", "")
+        if "ngay" in rec_text.lower(): rec_color = "#065f46"
+        elif "cân nhắc" in rec_text.lower(): rec_color = "#92400e"
+        else: rec_color = "#991b1b"
 
+    if rec_text:
         _, mid, _ = st.columns([1, 2, 1])
         with mid:
             st.markdown(f"""
@@ -677,7 +706,7 @@ def _render_candidate_detail(result: dict, candidate_key: str, candidate_name: s
                     border-radius:8px;padding:10px 32px;
                     font-size:0.9rem;font-weight:600;cursor:default;
                     width:100%;
-                ">{hiring_rec}</button>
+                ">{rec_text}</button>
             </div>
             """, unsafe_allow_html=True)
 
@@ -686,7 +715,8 @@ def _render_candidate_detail(result: dict, candidate_key: str, candidate_name: s
 # LEADERBOARD + RANKING
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _render_ranking(all_results: dict, label_col: str = "CV"):
+def _render_ranking(all_results: dict, label_col: str = "CV", mode: str = "recruiter"):
+    recommendation = "hiring_recommendation" if mode == "recruiter" else "candidate_recommendation"
     # Xây dữ liệu bảng
     rows = []
     for name, res in all_results.items():
@@ -704,7 +734,7 @@ def _render_ranking(all_results: dict, label_col: str = "CV"):
                 "skill": s["skill_score"],
                 "exp":   s["experience_score"],
                 "verdict": r.get("verdict", "N/A"),
-                "rec":     r.get("hiring_recommendation", "N/A"),
+                "rec":     r.get(recommendation, "N/A"),
                 "error": False,
             })
 
@@ -785,6 +815,7 @@ def _render_ranking(all_results: dict, label_col: str = "CV"):
                         res,
                         candidate_key=safe_key,
                         candidate_name=row["name"],
+                        mode=mode,
                     )
 
 
@@ -851,26 +882,35 @@ def render_recruiter_mode():
             return
 
         if jd_file:
+            # Lấy tên file và đuôi đảm bảo parse_cv hoạt động đúng nhận biết pdf hay doc ,...
             suffix = Path(jd_file.name).suffix.lower()
+            # Tạo file tạm trong disk
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                # Ghi nội dung vào
                 tmp.write(jd_file.read())
                 tmp_path = tmp.name
             try:
+                # Chạy hàm parse_cv với đường dẫn file đã ghi, lấy ra jd
                 jd_text = parse_cv(tmp_path)
             finally:
+                # Cuối cùng luôn xóa đi
                 os.unlink(tmp_path)
 
+        # Tạo dict rỗng để lưu kết quả, key là tên file CV, value là kết quả pipeline.
         all_results = {}
         progress = st.progress(0, text="Bắt đầu phân tích...")
+        # Duyệt từng CV để chấm điểm với jd
         for i, cv_file in enumerate(cv_files):
             progress.progress(i / len(cv_files), text=f"Đang xử lý: {cv_file.name}")
             try:
+                # Chạy pipeline cho từng CV, lưu kết quả vào dict với key là tên file.
                 all_results[cv_file.name] = run_pipeline(jd_text, cv_file)
             except Exception as e:
+                # Nếu 1 CV lỗi thì không crash toàn bộ, ghi lỗi rồi chạy tiếp CV tiếp theo.
                 all_results[cv_file.name] = {"error": str(e)}
         progress.progress(1.0, text=f"Hoàn tất {len(cv_files)} CV.")
 
-        _render_ranking(all_results, label_col="CV")
+        _render_ranking(all_results, label_col="CV", mode="recruiter")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -929,7 +969,7 @@ def _render_job_card(job, idx: int, is_selected: bool, is_full: bool):
     if st.session_state.get("expanded_job") == idx:
         with st.expander("", expanded=True):
             if job.detail:
-                st.markdown(job.detail[:3000] + ("..." if len(job.detail) > 3000 else ""))
+                st.markdown(job.detail)
             else:
                 st.warning("Không lấy được mô tả chi tiết.")
 
@@ -1079,7 +1119,7 @@ def render_candidate_mode():
         st.session_state.job_results = all_results
 
     if st.session_state.get("job_results"):
-        _render_ranking(st.session_state.job_results, label_col="Job")
+        _render_ranking(st.session_state.job_results, label_col="Job", mode="candidate")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1087,8 +1127,9 @@ def render_candidate_mode():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main():
+    # Khởi tạo các session_state
     if "mode" not in st.session_state:
-        st.session_state.mode = "recruiter"
+        st.session_state.mode = "recruiter" # mặc định ban đầu là chế độ tuyển dụng
     if "selected_jobs" not in st.session_state:
         st.session_state.selected_jobs = set()
     if "job_results" not in st.session_state:
@@ -1125,6 +1166,7 @@ def main():
 
     st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 
+    # Render chế độ tương ứng
     if st.session_state.mode == "recruiter":
         render_recruiter_mode()
     else:

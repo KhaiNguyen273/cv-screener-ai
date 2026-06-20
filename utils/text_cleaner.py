@@ -1,10 +1,3 @@
-"""
-utils/text_cleaner.py
----------------------
-Bước 2 (tiếp theo): Tiền xử lý và làm sạch văn bản thô từ CV / JD.
-Loại bỏ nhiễu, chuẩn hóa khoảng trắng, ký tự đặc biệt.
-"""
-
 import re
 import unicodedata
 
@@ -21,8 +14,8 @@ def remove_noise_characters(text: str) -> str:
     - Ký tự bullet, dấu đặc biệt không cần thiết
     - Dấu gạch ngang thừa
     """
-    # Loại bỏ ký tự điều khiển (trừ newline và tab)
-    text = re.sub(r"[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]", "", text)
+    # Loại bỏ ký tự điều khiển (trừ newline, carriage return và tab)
+    text = re.sub(r"[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]", "", text) 
     # Thay thế các loại bullet bằng dấu gạch ngang
     text = re.sub(r"[•·▪▸►◆●■□▶➤➢➣]", "-", text)
     # Loại bỏ ký tự đặc biệt không cần thiết nhưng giữ dấu câu cơ bản vd các icon 🚀, 💻, ⭐
@@ -62,10 +55,19 @@ def clean_text(raw_text: str) -> str:
 
     - Kinh nghiệm: 2 năm
     """
+    # None hoặc chuỗi toàn khoảng trắng → trả ""
     if not raw_text or not raw_text.strip():
         return ""
 
+    # Tiếng Việt có thể được lưu theo 2 cách khác nhau NFD (chữ ù = ký tự u + dấu huyền `) và NFC (chữ ù = 1 ký tự duy nhất)
     text = normalize_unicode(raw_text)
+
+    # Xóa các ký tự vô hình không in được như \x00 (null), \x01... 
+    # Thay bullet → dấu gạch ngang
+    # Xóa ký tự đặc biệt / icon
     text = remove_noise_characters(text)
+
+    # Thu gọn spaces/tabs nhiều dấu thành 1 dấu
+    # Thu gọn các dòng trống tối đa 2
     text = normalize_whitespace(text)
     return text
