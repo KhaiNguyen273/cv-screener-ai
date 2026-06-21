@@ -209,7 +209,8 @@ Trả về ĐÚNG ĐỊNH DẠNG JSON sau (không thêm bất kỳ text nào bê
     "Gợi ý phát triển 1 cho ứng viên",
     "Gợi ý phát triển 2"
   ],
-  "hiring_recommendation": "Mời phỏng vấn ngay | Đưa vào danh sách dự phòng | Từ chối lịch sự"
+  "hiring_recommendation": "Mời phỏng vấn ngay | Đưa vào danh sách dự phòng | Từ chối lịch sự",
+  "candidate_recommendation": "Nên ứng tuyển ngay | Cân nhắc bổ sung thêm kỹ năng trước | Không phù hợp với vị trí này"
 }}
 """
     return prompt.strip()
